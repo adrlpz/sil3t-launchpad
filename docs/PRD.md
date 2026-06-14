@@ -318,45 +318,80 @@ Infra:           Vercel (FE) + Railway/AWS (backend) + Alchemy + Helius (Solana)
 Given:
   user_deposit    = amount user puts in (USDC)
   margin_level    = % borrowed (0.10, 0.20, ..., 0.75)
-  protocol_loan   = user_deposit × (margin_level / (1 - margin_level))
-  effective_size   = user_deposit + protocol_loan
+  debt            = user_deposit × (margin_level / (1 - margin_level))
+  fee             = debt × 5% (dibayar di depan, dipotong dari deposit)
+  net_deposit     = user_deposit - fee
+  total_position  = user_deposit + debt (FULL, fee tidak mengurangi posisi)
+  coins_owned     = total_position / entry_price
+  safety_buffer   = 5% × total_position
 
 Example:
   user_deposit    = $100
   margin_level    = 50%
-  protocol_loan   = $100 × (0.50 / 0.50) = $100
-  effective_size   = $100 + $100 = $200
+  debt            = $100 × (0.50 / 0.50) = $50
+  fee             = $50 × 5% = $2.50
+  net_deposit     = $100 - $2.50 = $97.50
+  total_position  = $100 + $50 = $150 (150 koin @ $1)
+  safety_buffer   = 5% × $150 = $7.50
 ```
 
-### 7.2 Liquidation Price
+### 7.2 Liquidation Price (Equity-Based)
 
 ```
-liquidation_mc = entry_mc × (1 - margin_level)
+Ekuitas user = (coins_owned × current_price) - debt
 
-More precisely (with fees):
-  total_debt = protocol_loan + accrued_interest + margin_fee
-  liquidation_mc = entry_mc × (1 - (user_deposit / effective_size)) × safety_factor
+Liq saat ekuitas ≤ safety_buffer:
+  coins_owned × P - debt = safety_buffer
+  P = (debt + safety_buffer) / coins_owned
 
-safety_factor = 0.95 (5% buffer supaya protocol tidak loss)
+Contoh:
+  P = ($50 + $7.50) / 150 = $0.3833
+  Drop = 1 - 0.3833 = 61.67%
+
+Tabel:
+  Margin  | Hutang | Fee 5% | Total Posisi | Safety 5% | Liq Price | Drop
+  10%     | $10    | $0.50  | $110         | $5.50     | $0.1409   | 85.91%
+  20%     | $20    | $1.00  | $120         | $6.00     | $0.2167   | 78.33%
+  30%     | $30    | $1.50  | $130         | $6.50     | $0.2423   | 75.77%
+  40%     | $40    | $2.00  | $140         | $7.00     | $0.3143   | 68.57%
+  50%     | $50    | $2.50  | $150         | $7.50     | $0.3833   | 61.67%
+  75%     | $150   | $7.50  | $250         | $12.50    | $0.5433   | 45.67%
+
+Rumus umum:
+  liq_price = (debt + safety_buffer) / coins_owned
+  drop_pct  = 1 - liq_price / entry_price
+
+Dengan:
+  debt     = deposit × (margin / (1 - margin))
+  fee      = debt × 5%
+  posisi   = deposit + debt
+  safety   = posisi × 5%
+  liq_price = (debt + safety) / posisi
+  drop     = 1 - liq_price
 ```
 
 ### 7.3 PnL Calculation
 
 ```
-unrealized_pnl = (current_mc / entry_mc - 1) × effective_size - protocol_loan_interest - fees
+Harga per koin sekarang = current_mc / entry_mc (normalized)
+Nilai posisi sekarang   = coins_owned × (current_mc / entry_mc)
+Ekuitas user            = nilai_posisi - debt
+PnL                     = ekuitas - net_deposit
+ROI                     = PnL / net_deposit × 100%
 
-ROI on user deposit = unrealized_pnl / user_deposit × 100%
+Example (margin 50%, MC naik 50%):
+  entry_mc      = 200k, current_mc = 300k
+  coins_owned   = 150 koin
+  nilai_posisi  = 150 × (300k/200k) = 225
+  debt          = $50
+  ekuitas       = 225 - 50 = $175
+  net_deposit   = $97.50
+  PnL           = 175 - 97.50 = $77.50
+  ROI           = 77.50 / 97.50 = 79.5%
 
-Example:
-  entry_mc = 200k, current_mc = 300k, margin = 50%
-  position_value = $200 × (300k/200k) = $300
-  debt = $100 + $1 interest = $101
-  pnl = $300 - $200 - $1 = $99
-  ROI = $99 / $100 = 99%
-  
-  Without margin (spot):
-  pnl = $100 × (300k/200k - 1) = $50
-  ROI = $50 / $100 = 50%
+  Tanpa leverage:
+  PnL = $100 × (300k/200k - 1) = $50
+  ROI = 50 / 100 = 50%
 ```
 
 ### 7.4 Insurance Fund Model

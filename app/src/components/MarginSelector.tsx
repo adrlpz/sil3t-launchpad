@@ -12,11 +12,14 @@ interface MarginSelectorProps {
 export interface MarginData {
   marginLevel: number;
   userDeposit: number;
-  borrowed: number;
-  effectiveSize: number;
-  liquidationMc: number;
-  liquidationDrop: number;
-  marginFee: number;
+  debt: number;             // hutang pokok
+  debtFee: number;          // 5% dari hutang (dibayar di depan)
+  netDeposit: number;       // deposit - fee
+  totalPosition: number;    // deposit + hutang (FULL)
+  coinsOwned: number;       // jumlah koin
+  safetyBuffer: number;     // 5% dari total posisi
+  liquidationPrice: number; // harga per koin yang memicu liq
+  liquidationDrop: number;  // % drop dari harga beli
 }
 
 export function MarginSelector({ maxMargin, userBalance, entryMarketCap, onMarginChange }: MarginSelectorProps) {
@@ -25,22 +28,44 @@ export function MarginSelector({ maxMargin, userBalance, entryMarketCap, onMargi
 
   const data = useMemo((): MarginData => {
     const marginFraction = marginLevel / 100;
-    const borrowed = depositAmount * (marginFraction / (1 - marginFraction));
-    const effectiveSize = depositAmount + borrowed;
-    const marginFee = depositAmount * 0.015; // 1.5%
-    const liquidationMc = entryMarketCap * (1 - marginFraction);
-    const liquidationDrop = marginLevel;
+
+    // Hutang = deposit × (margin / (1 - margin))
+    // Contoh: $100 × (50% / 50%) = $50
+    const debt = depositAmount * (marginFraction / (1 - marginFraction));
+
+    // Fee 5% dari hutang (dibayar di depan)
+    const debtFee = debt * 0.05;
+
+    // Net deposit = deposit - fee
+    const netDeposit = depositAmount - debtFee;
+
+    // Total posisi = deposit + hutang (FULL, fee tidak mengurangi)
+    const totalPosition = depositAmount + debt;
+
+    // Jumlah koin (normalized)
+    const coinsOwned = totalPosition;
+
+    // Safety buffer = 5% × total posisi
+    const safetyBuffer = totalPosition * 0.05;
+
+    // Liquidation price = (debt + safetyBuffer) / coinsOwned
+    // Contoh: (50 + 7.50) / 150 = 0.3833 → drop 61.67%
+    const liquidationPrice = (debt + safetyBuffer) / coinsOwned;
+    const liquidationDrop = (1 - liquidationPrice) * 100;
 
     return {
       marginLevel,
       userDeposit: depositAmount,
-      borrowed,
-      effectiveSize,
-      liquidationMc,
+      debt,
+      debtFee,
+      netDeposit,
+      totalPosition,
+      coinsOwned,
+      safetyBuffer,
+      liquidationPrice,
       liquidationDrop,
-      marginFee,
     };
-  }, [depositAmount, marginLevel, entryMarketCap]);
+  }, [depositAmount, marginLevel]);
 
   const handleDepositChange = (value: string) => {
     const num = parseFloat(value) || 0;
@@ -110,16 +135,24 @@ export function MarginSelector({ maxMargin, userBalance, entryMarketCap, onMargi
           <div className="text-xl font-bold">${data.userDeposit.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">Borrowed</div>
-          <div className="text-xl font-bold text-blue-400">${data.borrowed.toFixed(2)}</div>
+          <div className="text-xs text-gray-400 mb-1">Debt (Hutang)</div>
+          <div className="text-xl font-bold text-blue-400">${data.debt.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">Effective Position</div>
-          <div className="text-xl font-bold text-green-400">${data.effectiveSize.toFixed(2)}</div>
+          <div className="text-xs text-gray-400 mb-1">Fee (5% of debt)</div>
+          <div className="text-xl font-bold text-yellow-400">${data.debtFee.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-xs text-gray-400 mb-1">Margin Fee (1.5%)</div>
-          <div className="text-xl font-bold text-yellow-400">${data.marginFee.toFixed(2)}</div>
+          <div className="text-xs text-gray-400 mb-1">Net Deposit</div>
+          <div className="text-xl font-bold text-green-400">${data.netDeposit.toFixed(2)}</div>
+        </div>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-xs text-gray-400 mb-1">Total Position</div>
+          <div className="text-xl font-bold text-green-400">${data.totalPosition.toFixed(2)}</div>
+        </div>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-xs text-gray-400 mb-1">Safety Buffer (5%)</div>
+          <div className="text-xl font-bold text-purple-400">${data.safetyBuffer.toFixed(2)}</div>
         </div>
       </div>
 
@@ -130,14 +163,17 @@ export function MarginSelector({ maxMargin, userBalance, entryMarketCap, onMargi
           <span className="font-semibold text-red-400">Liquidation Threshold</span>
         </div>
         <div className="text-sm text-gray-300">
-          If market cap drops <span className="text-red-400 font-bold">{data.liquidationDrop}%</span> to{' '}
-          <span className="text-red-400 font-bold">${(data.liquidationMc / 1000).toFixed(0)}K</span>, your position will be liquidated and you lose your entire deposit.
+          Jika harga koin turun <span className="text-red-400 font-bold">{data.liquidationDrop.toFixed(1)}%</span> dari harga beli
+          (harga per koin ≤ <span className="text-red-400 font-bold">${data.liquidationPrice.toFixed(4)}</span>), posisi kamu akan dilikuidasi dan kamu kehilangan seluruh deposit.
+        </div>
+        <div className="text-xs text-gray-500 mt-2">
+          Rumus: Liq Price = (Debt + Safety Buffer) / Coins = (${data.debt.toFixed(2)} + ${data.safetyBuffer.toFixed(2)}) / {data.coinsOwned.toFixed(0)} = ${data.liquidationPrice.toFixed(4)}
         </div>
       </div>
 
       {/* Action Button */}
       <button className="w-full bg-orange-600 hover:bg-orange-700 py-4 rounded-lg font-bold text-lg transition">
-        Open Position — ${data.effectiveSize.toFixed(2)} (with {marginLevel}% margin)
+        Open Position — ${data.totalPosition.toFixed(2)} ({marginLevel}% margin, {data.liquidationDrop.toFixed(0)}% liq)
       </button>
     </div>
   );

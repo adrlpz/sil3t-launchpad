@@ -56,8 +56,10 @@ contract SiL3tTest is Test {
         oc.setPrice(token, 300000e18);
 
         // In production: sell tokens on AMM → receive profit USDC.
-        // For MVP test: inject the profit (99.25 USDC) into MarginEngine.
-        usdc.mint(address(me), 100e6);
+        // For MVP test: inject profit into MarginEngine.
+        // With new model: currentValue = 150 × 1.5 = 225, payout = 225 - 50 = 175
+        // Contract has 147.5 (net deposit 97.5 + borrowed 50). Need 175. Inject ~30.
+        usdc.mint(address(me), 200e6);
 
         vm.prank(user1);
         me.closePosition(pid);
