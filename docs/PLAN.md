@@ -798,12 +798,17 @@ Week 20:    Cross-chain bridge (LayerZero)
 - [x] Database schema (Drizzle ORM)
 - [x] .env.example
 
-### Phase 3: Frontend ⏳ IN PROGRESS
-- [ ] Next.js app
-- [ ] Chain switcher
-- [ ] Margin selector component
-- [ ] Position dashboard
-- [ ] Lending pool UI
+### Phase 3: Frontend ✅ COMPLETE
+- [x] Next.js app (App Router + Tailwind)
+- [x] Homepage (hero, stats, how it works)
+- [x] Launches page (list, filter, chain badges)
+- [x] Portfolio page (active/closed positions, PnL)
+- [x] Lending pool page (deposit/withdraw, APY)
+- [x] Stats page (TVL, volume, liquidations, per-chain)
+- [x] MarginSelector component (slider, calculations, liq warning)
+- [x] Chain config (Base, Arbitrum, ETH, BSC)
+- [ ] Chain switcher (wagmi/RainbowKit — needs npm install)
+- [ ] Wallet connect integration
 
 ---
 
