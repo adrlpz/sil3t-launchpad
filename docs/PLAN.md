@@ -8,8 +8,8 @@
 ## Phase 0: Foundation (Week 1-2)
 
 ### 0.1 Project Setup
-- [ ] Init monorepo (turborepo / pnpm workspace)
-- [ ] Smart contract project: Foundry (forge + anvil)
+- [x] Init monorepo (turborepo / pnpm workspace)
+- [x] Smart contract project: Foundry (forge + anvil)
 - [ ] Frontend: Next.js 14 (App Router) + TailwindCSS + shadcn/ui
 - [ ] Backend: Hono on Node.js
 - [ ] Database: PostgreSQL + Drizzle ORM
@@ -742,12 +742,51 @@ Week 20:    Cross-chain bridge (LayerZero)
 
 ## Next Immediate Steps
 
-1. **Create GitHub repo** `sil3t-launchpad` under adrlpz
-2. **Init Foundry project** — basic contract scaffolding
-3. **Init Next.js app** — basic pages + wagmi setup
-4. **Write MarginEngine.sol** — core contract, most critical
-5. **Write tests** — before any feature work
+1. **Create GitHub repo** `sil3t-launchpad` under adrlpz  ✅ DONE
+2. **Init Foundry project** — basic contract scaffolding  ✅ DONE
+3. **Init Next.js app** — basic pages + wagmi setup  ✅ DONE
+4. **Write MarginEngine.sol** — core contract, most critical  ✅ DONE
+5. **Write tests** — before any feature work  ✅ DONE (6/6 passing)
+6. **Init Next.js frontend** — pages + wagmi + chain switcher
+7. **Write backend API** — indexer + liquidation keeper
+8. **Deploy to testnet** — Base Sepolia + Arbitrum Sepolia
+9. **Security audit** — internal review first
 
 ---
 
-*Plan v1.0 — siL3t Leveraged Launchpad*
+## Progress Checklist
+
+### Phase 0: Foundation ✅\|- [x] Foundry project initialized
+- [x] OpenZeppelin installed
+- [x] Foundry config (remappings, optimizer)
+- [ ] Next.js frontend
+- [ ] Backend (Hono)
+- [ ] Database (PostgreSQL)
+
+### Phase 1: Smart Contracts ✅\|- [x] MockUSDC.sol (testnet)
+- [x] LendingPool.sol (deposit, borrow, repay)
+- [x] LaunchPool.sol (create, deposit, finalize, claim)
+- [x] MarginEngine.sol (open, close, liquidate, health check)
+- [x] OracleAdapter.sol (TWAP, Chainlink, Manual)
+- [x] InsuranceFund.sol (deposit, cover bad debt)
+- [x] FeeCollector.sol (collect, distribute)
+- [x] SiL3tFactory.sol (deploy + wire all contracts)
+- [x] Deploy script (Deploy.s.sol)
+- [x] Tests (6/6 passing)
+- [ ] LiquidationEngine.sol (standalone — currently in MarginEngine)
+- [ ] CrossChainBridge.sol (v2)
+
+### Phase 2: Backend ⏳\|- [ ] API server (Hono)
+- [ ] Indexer (event listener)
+- [ ] Liquidation keeper bot
+- [ ] Price feed service
+
+### Phase 3: Frontend ⏳\|- [ ] Next.js app
+- [ ] Chain switcher
+- [ ] Margin selector component
+- [ ] Position dashboard
+- [ ] Lending pool UI
+
+---
+
+*Plan v1.1 — siL3t Leveraged Launchpad — Smart Contracts Complete*
