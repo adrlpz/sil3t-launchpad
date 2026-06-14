@@ -601,6 +601,30 @@ Max launch raise:    $500K
 
 ### 6.1 Launch Sequence
 1. **Week 10:** Mainnet deploy + insurance fund seed
+
+---
+
+## Status (as of 2026-06-14)
+
+### ✅ Done
+- [x] Phase 0: Foundry project init, OpenZeppelin v5, config
+- [x] Phase 1: 7 Solidity contracts (MockUSDC, LendingPool, LaunchPool, MarginEngine, OracleAdapter, InsuranceFund, FeeCollector)
+- [x] Phase 1: Deploy script (Deploy.s.sol + DeploySplit.s.sol)
+- [x] Phase 1: Tests 3/3 passing
+- [x] Phase 2: Hono API backend (routes: /health, /launches, /positions, /stats)
+- [x] Phase 2: Drizzle ORM schema (5 tables), liquidation keeper bot
+- [x] Phase 3: Next.js 14 frontend (5 pages: Home, Launches, Portfolio, Lend, Stats)
+- [x] Phase 3: MarginSelector component, chain config (Sepolia L1)
+- [x] Security audit: internal review complete
+- [x] Testnet deploy: Sepolia L1 — 7 contracts deployed + verified
+
+### 🔄 In Progress
+- [ ] Frontend wallet connect (wagmi + RainbowKit)
+- [ ] E2E testing di Sepolia
+
+### ⏳ Next
+- [ ] Phase 4: Mainnet deploy (Ethereum L1, Base, Arbitrum)
+- [ ] Phase 5: Multi-chain expansion
 2. **Week 11:** Partner launch #1 (curated, max 30% margin)
 3. **Week 12:** Partner launch #2 (max 50% margin)
 4. **Week 13:** Public launch announcement + trading competition
