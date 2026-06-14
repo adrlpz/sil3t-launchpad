@@ -763,7 +763,7 @@ Week 20:    Cross-chain bridge (LayerZero)
 6. **Init Next.js frontend** — pages + wagmi + chain switcher
 7. **Write backend API** — indexer + liquidation keeper  ✅ DONE
 8. **Deploy to testnet** — Base Sepolia + Arbitrum Sepolia
-9. **Security audit** — internal review first
+9. **Security audit** — internal review first  ✅ DONE
 10. **Init Next.js frontend** — NEXT STEP
 
 ---
