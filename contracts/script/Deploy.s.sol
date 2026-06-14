@@ -13,6 +13,8 @@ contract Deploy is Script {
         address treasury = vm.envOr("TREASURY_ADDRESS", msg.sender);
         address stakerPool = vm.envOr("STAKER_POOL_ADDRESS", msg.sender);
 
+        address deployer = vm.addr(deployerKey);
+
         vm.startBroadcast(deployerKey);
 
         // 1. Deploy Mock USDC (testnet only — use real USDC on mainnet)
@@ -20,7 +22,7 @@ contract Deploy is Script {
         console.log("USDC deployed at:", address(usdc));
 
         // 2. Deploy SiL3t Factory
-        SiL3tFactory factory = new SiL3tFactory(msg.sender);
+        SiL3tFactory factory = new SiL3tFactory(deployer);
         console.log("Factory deployed at:", address(factory));
 
         // 3. Initialize protocol (deploys all sub-contracts)
