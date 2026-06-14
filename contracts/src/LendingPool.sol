@@ -100,10 +100,9 @@ contract LendingPool is Ownable, ReentrancyGuard {
         require(shareAmount > 0 && shareAmount <= shares[msg.sender], "Invalid share");
 
         uint256 usdcAmount = (shareAmount * totalDeposited) / totalShares;
-        require(
-            totalDeposited - usdcAmount >= totalBorrowed,
-            "Pool utilization too high"
-        );
+        uint256 newTotal = totalDeposited - usdcAmount;
+        uint256 newUtilization = newTotal > 0 ? (totalBorrowed * 10000) / newTotal : 0;
+        require(newUtilization <= maxUtilizationBps, "Exceeds max utilization");
 
         shares[msg.sender] -= shareAmount;
         totalShares -= shareAmount;

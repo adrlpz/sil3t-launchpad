@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./LendingPool.sol";
 import "./OracleAdapter.sol";
+import "./InsuranceFund.sol";
 
 /// @title MarginEngine — Core margin logic for siL3t launchpad
 /// @notice Manages leveraged positions: open, close, liquidate
@@ -70,6 +71,7 @@ contract MarginEngine is Ownable, ReentrancyGuard {
 
     // Safety margin — 5% dari posisi awal
     uint256 public constant SAFETY_MARGIN_BPS = 500; // 5%
+    uint256 public constant MIN_DEPOSIT = 10e6; // $10 minimum
 
     // ─── Events ───────────────────────────────────────────────
     event PositionOpened(
@@ -160,6 +162,7 @@ contract MarginEngine is Ownable, ReentrancyGuard {
         LaunchConfig memory config = launchConfigs[launchId];
         require(config.isActive, "Launch not active");
         require(depositAmount > 0, "Zero deposit");
+        require(depositAmount >= MIN_DEPOSIT, "Below minimum deposit");
         require(marginLevel > 0 && marginLevel <= config.maxMargin, "Invalid margin");
 
         // Get current market cap from oracle
@@ -343,8 +346,11 @@ contract MarginEngine is Ownable, ReentrancyGuard {
             if (available > 0) {
                 lendingPool.repay(pos.debtId, available);
             }
-            if (liqFee > 0 && currentValue > liqReward + liqFee) {
-                usdc.safeTransfer(treasury, liqFee);
+            uint256 deficit = debtOwed > available ? debtOwed - available : 0;
+            if (deficit > 0) {
+                // Pull dari insurance fund
+                InsuranceFund(insuranceFund).coverBadDebt(deficit);
+                lendingPool.repay(pos.debtId, deficit);
             }
             usdc.safeTransfer(msg.sender, liqReward);
         }

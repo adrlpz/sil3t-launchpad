@@ -22,6 +22,11 @@ contract SiL3tTest is Test {
         usdc.mint(user1, 10000e6);
         usdc.mint(lp, 100000e6);
 
+        // Fund insurance pool
+        usdc.mint(address(this), 50000e6);
+        usdc.approve(address(factory.insuranceFund()), 50000e6);
+        factory.insuranceFund().deposit(50000e6);
+
         vm.startPrank(lp);
         usdc.approve(address(factory.lendingPool()), 50000e6);
         factory.lendingPool().deposit(50000e6);

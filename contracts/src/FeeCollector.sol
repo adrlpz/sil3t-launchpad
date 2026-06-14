@@ -41,16 +41,6 @@ contract FeeCollector is Ownable {
         stakerPool = _stakerPool;
     }
 
-    /// @notice Collect fee from any source
-    function collect(string calldata source) external {
-        // Pull USDC from caller
-        uint256 balance = usdc.balanceOf(msg.sender);
-        require(balance > 0, "No balance");
-
-        // Note: caller must approve this contract first
-        // For simplicity, fees are sent directly to this contract
-    }
-
     /// @notice Deposit fees (called by MarginEngine / LaunchPool)
     function depositFee(uint256 amount, string calldata source) external {
         require(amount > 0, "Zero fee");
