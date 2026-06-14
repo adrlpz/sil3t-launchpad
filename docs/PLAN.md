@@ -618,8 +618,8 @@ Max launch raise:    $500K
 - [x] Security audit: internal review complete
 - [x] Testnet deploy: Sepolia L1 — 7 contracts deployed + verified
 
-### 🔄 In Progress
-- [ ] Frontend wallet connect (wagmi + RainbowKit)
+### ✅ Done
+- [x] Frontend wallet connect (wagmi + RainbowKit) — build passing
 
 ### ⏳ Next
 - [ ] Phase 4: Mainnet deploy (Ethereum L1, Base, Arbitrum)
