@@ -761,9 +761,10 @@ Week 20:    Cross-chain bridge (LayerZero)
 4. **Write MarginEngine.sol** — core contract, most critical  ✅ DONE
 5. **Write tests** — before any feature work  ✅ DONE (6/6 passing)
 6. **Init Next.js frontend** — pages + wagmi + chain switcher
-7. **Write backend API** — indexer + liquidation keeper
+7. **Write backend API** — indexer + liquidation keeper  ✅ DONE
 8. **Deploy to testnet** — Base Sepolia + Arbitrum Sepolia
 9. **Security audit** — internal review first
+10. **Init Next.js frontend** — NEXT STEP
 
 ---
 
@@ -789,12 +790,16 @@ Week 20:    Cross-chain bridge (LayerZero)
 - [ ] LiquidationEngine.sol (standalone — currently in MarginEngine)
 - [ ] CrossChainBridge.sol (v2)
 
-### Phase 2: Backend ⏳\|- [ ] API server (Hono)
-- [ ] Indexer (event listener)
-- [ ] Liquidation keeper bot
-- [ ] Price feed service
+### Phase 2: Backend ✅ COMPLETE
+- [x] API server (Hono) — routes: /health, /launches, /positions, /stats
+- [x] Indexer (event listener) — watches PositionOpened/Closed/Liquidated
+- [x] Liquidation keeper bot — polls positions, auto-liquidates
+- [x] Price feed service — integrated in keeper
+- [x] Database schema (Drizzle ORM)
+- [x] .env.example
 
-### Phase 3: Frontend ⏳\|- [ ] Next.js app
+### Phase 3: Frontend ⏳ IN PROGRESS
+- [ ] Next.js app
 - [ ] Chain switcher
 - [ ] Margin selector component
 - [ ] Position dashboard
@@ -802,4 +807,4 @@ Week 20:    Cross-chain bridge (LayerZero)
 
 ---
 
-*Plan v1.1 — siL3t Leveraged Launchpad — Smart Contracts Complete*
+*Plan v1.2 — siL3t Leveraged Launchpad — Backend Complete*
