@@ -620,7 +620,6 @@ Max launch raise:    $500K
 
 ### 🔄 In Progress
 - [ ] Frontend wallet connect (wagmi + RainbowKit)
-- [ ] E2E testing di Sepolia
 
 ### ⏳ Next
 - [ ] Phase 4: Mainnet deploy (Ethereum L1, Base, Arbitrum)
