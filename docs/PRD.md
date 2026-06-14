@@ -191,30 +191,121 @@ Kalau MC turun ke 100k → posisi dilikuidasi otomatis
 └─────────────────────────────────────────────────┘
 ```
 
-### 6.2 Key Contracts
+### 6.3 Key Contracts
 
-| Contract | Responsibility |
-|----------|---------------|
-| `SiL3tFactory` | Deploy launch contracts, manage protocol config |
-| `LaunchPool` | Per-launch contract — collect funds, distribute tokens |
-| `MarginEngine` | Core margin logic — open/close/liquidate positions |
-| `LendingPool` | Lend USDC to margin users, manage utilization |
-| `LiquidationBot` | Off-chain keeper — monitor & trigger liquidations |
-| `OracleAdapter` | Fetch price from DEX pool (TWAP + spot) |
-| `InsuranceFund` | Buffer buat cover bad debt |
-| `FeeCollector` | Collect & distribute fees |
+| Contract | Responsibility | Chains |
+|----------|---------------|--------|
+| `SiL3tFactory` | Deploy launch contracts, manage protocol config | All EVM |
+| `LaunchPool` | Per-launch contract — collect funds, distribute tokens | All EVM |
+| `MarginEngine` | Core margin logic — open/close/liquidate positions | All EVM |
+| `LendingPool` | Lend USDC to margin users, manage utilization | All EVM |
+| `LiquidationBot` | Off-chain keeper — monitor & trigger liquidations | All EVM |
+| `OracleAdapter` | Fetch price from DEX pool (TWAP + spot) | All EVM |
+| `InsuranceFund` | Buffer buat cover bad debt | All EVM |
+| `FeeCollector` | Collect & distribute fees | All EVM |
+| `CrossChainBridge` | Bridge positions/tokens cross-chain (v2) | LayerZero |
+| Solana Program | Full siL3t logic in Rust/Anchor | Solana |
 
-### 6.3 Tech Stack
+### 6.3 Multi-Chain Architecture
+
+siL3t deploy ke 5 chain secara bertahap. EVM chains share smart contract code (same Solidity). Solana pakai program terpisah (Rust/Anchor). Lending pool per-chain = isolated risk.
 
 ```
-Smart Contracts: Solidity 0.8.24+ / Foundry
-Frontend:        Next.js 14 + Tailwind + wagmi/viem
-Indexer:         The Graph / custom subgraph
+┌──────────────────────────────────────────────────────────────┐
+│                    siL3t Unified Frontend                      │
+│              Next.js + wagmi + chain switcher                  │
+│              1 app, user pilih chain via wallet                │
+└────┬──────────┬──────────┬──────────┬──────────┬──────────────┘
+     │          │          │          │          │
+┌────┴───┐ ┌───┴────┐ ┌───┴────┐ ┌───┴────┐ ┌───┴──────────┐
+│Ethereum│ │  Base  │ │Arbitrum│ │  BSC   │ │   Solana     │
+│  L1   │ │  L2   │ │   L2   │ │   L1   │ │ (Rust/Anchor)│
+│        │ │        │ │        │ │        │ │              │
+│Contracts│ │Contracts│ │Contracts│ │Contracts│ │  Program     │
+│(same)  │ │(same)  │ │(same)  │ │(same)  │ │ (separate)   │
+└────────┘ └────────┘ └────────┘ └────────┘ └──────────────┘
+```
+
+#### Chain Strategy
+
+| Chain | Phase | Priority | Oracle | DEX Router | Gas Cost | Target Audience |
+|-------|-------|----------|--------|------------|----------|----------------|
+| **Base** | v1.0 | 🥇 Primary | Uniswap V3 TWAP | Uniswap V3 / Aerodrome | Very Low | Degen retail, Coinbase users |
+| **Arbitrum** | v1.0 | 🥇 Primary | Uniswap V3 TWAP | Uniswap V3 / Camelot | Low | Pro traders, GMX crowd |
+| **Ethereum L1** | v1.5 | 🥇 Primary | Uniswap V3 TWAP | Uniswap V3 | High | Whales, institutional, credibility |
+| **BSC** | v2.0 | 🥈 Secondary | PancakeSwap TWAP | PancakeSwap | Very Low | Asia market, meme culture |
+| **Solana** | v2.0 | 🥈 Secondary | Jupiter / Raydium | Jupiter Aggregator | Lowest | Pump.fun crowd, mobile users |
+
+#### Per-Chain Isolation Model
+
+```
+Each chain has INDEPENDENT:
+├── Lending Pool (USDC pool per chain — no cross-chain lending)
+├── Insurance Fund (per-chain risk buffer)
+├── Oracle Adapter (chain-specific DEX price feed)
+├── Liquidation Keeper (per-chain bot instance)
+└── Launch Registry (launches are chain-specific)
+
+Why isolated:
+- Cross-chain messaging = attack surface + latency
+- Liquidation needs <5s response time (bridges too slow)
+- Each chain has different gas economics
+- Simpler security model per deployment
+```
+
+#### Ethereum L1 — Special Considerations
+
+Ethereum L1 punya gas cost tinggi, jadi strategi berbeda:
+
+| Aspect | L1 Strategy |
+|--------|-------------|
+| Min launch raise | $50K (filter small/low-quality launches) |
+| Max margin | 50% (lebih konservatif — high gas = fewer liquidation txs) |
+| Target user | Whale, institutional, high-conviction degens |
+| Gas optimization | Batch positions in single tx, multicall |
+| Oracle | Chainlink primary + Uniswap V3 TWAP fallback |
+| Fee structure | Higher margin fee (2%) to offset gas overhead |
+| Liquidation | Flashbots Protect + priority fee optimization |
+| Value prop | "Premium launches with institutional-grade liquidity" |
+
+#### Cross-Chain Token Bridge (v2)
+
+```
+User flow: Launch di Base → bridge position ke Arbitrum
+
+NOT cross-chain margin (too risky).
+Instead: bridge the TOKEN, close position on source, open new on dest.
+
+Bridge options:
+├── LayerZero (omnichain messaging)
+├── Across Protocol (fast, capital-efficient)
+└── Wormhole (Solana ↔ EVM)
+
+siL3t token: Omnichain (LayerZero OFT) — 1 address, all chains.
+```
+
+#### RPC & Infrastructure Per Chain
+
+| Chain | RPC Provider | Block Explorer | DEX Oracle |
+|-------|-------------|----------------|------------|
+| Ethereum | Alchemy / Infura | Etherscan | Uniswap V3 TWAP |
+| Base | Alchemy | Basescan | Uniswap V3 TWAP |
+| Arbitrum | Alchemy | Arbiscan | Uniswap V3 TWAP |
+| BSC | QuickNode | BscScan | PancakeSwap TWAP |
+| Solana | Helius / Triton | Solscan | Jupiter / Raydium |
+
+### 6.4 Tech Stack
+
+```
+Smart Contracts: Solidity 0.8.24+ / Foundry (EVM) + Anchor / Rust (Solana)
+Frontend:        Next.js 14 + Tailwind + wagmi/viem + Solana wallet adapter
+Indexer:         The Graph / custom subgraph (per chain)
 Backend:         Node.js (Hono/Fastify) — liquidation bot, API
-Oracle:          Uniswap V3 TWAP (EVM) / Jupiter (Solana)
-Database:        PostgreSQL (positions, analytics)
+Oracle:          Uniswap V3 TWAP (EVM) + Chainlink fallback / Jupiter (Solana)
+Database:        PostgreSQL (positions, analytics) — shared across chains
 Cache:           Redis (real-time PnL, price cache)
-Infra:           Vercel (FE) + Railway/AWS (backend) + Alchemy (RPC)
+Bridge:          LayerZero (token), Across (position bridge)
+Infra:           Vercel (FE) + Railway/AWS (backend) + Alchemy + Helius (Solana)
 ```
 
 ---
@@ -330,27 +421,30 @@ Funding sources:
 ## 10. Go-To-Market Strategy
 
 ### Phase 1: Testnet (Month 1-2)
-- Deploy smart contracts ke Base Sepolia / Arbitrum Sepolia
+- Deploy smart contracts ke Base Sepolia / Arbitrum Sepolia / Ethereum Sepolia
 - Public testnet — incentivized testing campaign
 - Bug bounty (testnet)
 - Community building: Twitter/X, Telegram, Discord
 
 ### Phase 2: Mainnet Beta (Month 3-4)
-- Launch on Base mainnet (low gas, high degen activity)
-- 2-3 curated launches (partner projects)
+- Launch on Base + Arbitrum mainnet (low gas, high degen activity)
+- 2-3 curated launches per chain (partner projects)
 - Limited margin (max 50%)
-- Insurance fund bootstrap (protocol treasury)
+- Insurance fund bootstrap per chain (protocol treasury)
 
 ### Phase 3: Full Launch (Month 5-6)
 - Open launchpad (anyone can create)
 - Full margin range (up to 75%)
-- Multi-chain expansion (Arbitrum, Solana)
-- siL3t token launch + airdrop
+- Ethereum L1 mainnet launch (whale/institutional tier)
+- BSC + Solana expansion prep
+- siL3t token launch + airdrop (Omnichain via LayerZero)
 
 ### Phase 4: Scale (Month 7-12)
+- BSC + Solana mainnet deployment
 - Cross-margin, advanced features
 - Mobile app
 - Governance DAO activation
+- Cross-chain position bridge (Across / LayerZero)
 - Strategic partnerships with existing launchpads
 
 ---

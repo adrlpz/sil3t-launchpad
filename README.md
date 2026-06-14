@@ -23,21 +23,25 @@ User bisa pilih margin level (10%, 20%, 30%, 50%, 75%) saat beli token di launch
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│              siL3t Frontend                  │
-│         Next.js + wagmi + viem               │
-└────────────────────┬────────────────────────┘
-                     │
-┌────────────────────┴────────────────────────┐
-│              siL3t API (Hono)                │
-│      Indexer · Liquidation Keeper · Stats    │
-└────────────────────┬────────────────────────┘
-                     │
-┌────────────────────┴────────────────────────┐
-│              Smart Contracts                  │
-│  LendingPool · MarginEngine · LaunchPool     │
-│  LiquidationEngine · OracleAdapter · Fees    │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│              siL3t Frontend (1 app)              │
+│       Next.js + wagmi + Solana wallet adapter    │
+│         Chain switcher: ETH/Base/Arb/BSC/SOL     │
+└──────┬──────────┬──────────┬──────────┬──────────┘
+       │          │          │          │
+┌──────┴──┐ ┌─────┴──┐ ┌────┴───┐ ┌────┴────┐
+│ Ethereum│ │  Base  │ │Arbitrum│ │  BSC    │
+│   L1   │ │   L2   │ │   L2   │ │   L1    │
+│Contracts│ │Contract│ │Contract│ │Contract │
+└─────────┘ └────────┘ └────────┘ └─────────┘
+                                   ┌─────────┐
+                                   │ Solana  │
+                                   │ Program │
+                                   │ (Rust)  │
+                                   └─────────┘
+
+Backend: Hono API (indexer + liquidation keeper per chain)
+Oracle:  Uniswap V3 TWAP (EVM) / Jupiter (Solana) / Chainlink (ETH L1)
 ```
 
 ---
@@ -56,11 +60,12 @@ User bisa pilih margin level (10%, 20%, 30%, 50%, 75%) saat beli token di launch
 
 ## 🛠️ Tech Stack
 
-- **Smart Contracts:** Solidity + Foundry
-- **Frontend:** Next.js 14 + Tailwind + wagmi/viem
+- **Smart Contracts:** Solidity + Foundry (EVM) + Anchor/Rust (Solana)
+- **Frontend:** Next.js 14 + Tailwind + wagmi/viem + Solana wallet adapter
 - **Backend:** Hono + PostgreSQL + Redis
-- **Oracle:** Uniswap V3 TWAP
-- **Chain:** Base (primary), Arbitrum, Solana
+- **Oracle:** Uniswap V3 TWAP (Base/Arb) + Chainlink (ETH L1) + Jupiter (Solana)
+- **Chains:** Ethereum L1, Base, Arbitrum, BSC, Solana
+- **Bridge:** LayerZero (omnichain token) + Across (position bridge)
 
 ---
 
@@ -68,10 +73,11 @@ User bisa pilih margin level (10%, 20%, 30%, 50%, 75%) saat beli token di launch
 
 ```
 sil3t/
-├── contracts/     # Foundry — Solidity smart contracts
-├── app/           # Next.js frontend
+├── contracts/     # Foundry — Solidity smart contracts (EVM)
+├── solana/        # Anchor — Rust program (Solana)
+├── app/           # Next.js frontend (all chains)
 ├── api/           # Hono backend services
-├── keeper/        # Liquidation monitoring bot
+├── keeper/        # Liquidation monitoring bot (per chain)
 └── docs/          # PRD, architecture, API docs
 ```
 

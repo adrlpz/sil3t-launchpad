@@ -228,14 +228,65 @@ forge snapshot
 forge test --gas-report
 ```
 
-### 1.10 Deployment Script
+### 1.10 Multi-Chain Deployment Strategy
+
+#### EVM Chains (Base, Arbitrum, Ethereum L1, BSC)
+Same Solidity contracts — deploy identical code to each chain.
+
 ```bash
-# Deploy to Base Sepolia
+# Deploy to Base Sepolia (testnet)
 forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify
 
+# Deploy to Arbitrum Sepolia (testnet)
+forge script script/Deploy.s.sol --rpc-url arb_sepolia --broadcast --verify
+
+# Deploy to Ethereum Sepolia (testnet)
+forge script script/Deploy.s.sol --rpc-url eth_sepolia --broadcast --verify
+
+# --- Mainnet ---
 # Deploy to Base Mainnet
 forge script script/Deploy.s.sol --rpc-url base_mainnet --broadcast --verify
+
+# Deploy to Arbitrum Mainnet
+forge script script/Deploy.s.sol --rpc-url arb_mainnet --broadcast --verify
+
+# Deploy to Ethereum Mainnet (higher gas — optimize first)
+forge script script/Deploy.s.sol --rpc-url eth_mainnet --broadcast --verify --with-gas-price 20gwei
+
+# Deploy to BSC Mainnet
+forge script script/Deploy.s.sol --rpc-url bsc_mainnet --broadcast --verify
 ```
+
+#### Chain-Specific Config
+```solidity
+// script/Deploy.s.sol — per-chain param override
+struct ChainConfig {
+    uint256 maxMargin;          // 75% default, 50% for ETH L1
+    uint256 marginFeeBps;       // 150 default, 200 for ETH L1
+    uint256 liqFeeBps;          // 500 default
+    uint256 maxUtilization;     // 80% default, 60% for ETH L1
+    address usdc;               // chain-specific USDC address
+    address uniswapFactory;     // Uniswap V3 factory per chain
+    address oracle;             // Chainlink (ETH L1) or TWAP (L2)
+}
+```
+
+#### Solana (Anchor/Rust)
+Separate program — same logic, different language:
+```bash
+# Anchor project structure
+anchor init sil3t-solana
+# programs/sil3t/src/
+#   lib.rs              # Entry point
+#   state.rs            # Position, Launch structs
+#   margin.rs           # Margin engine logic
+#   liquidation.rs      # Liquidation engine
+#   oracle.rs           # Jupiter/Raydium price feed
+#   errors.rs           # Custom errors
+```
+
+Oracle: Jupiter price API + Raydium pool reserves as fallback.
+Router: Jupiter aggregator for best execution.
 
 ---
 
@@ -353,26 +404,29 @@ async function monitorPositions() {
 
 | Page | Route | Description |
 |------|-------|-------------|
-| Home | `/` | Hero + featured launches + stats |
-| Launches | `/launches` | List all active/upcoming launches |
-| Launch Detail | `/launch/:id` | Single launch — info, buy with margin |
-| Portfolio | `/portfolio` | User positions, PnL, history |
-| Lend | `/lend` | Lending pool — deposit USDC, earn yield |
-| Stats | `/stats` | Protocol TVL, volume, liquidations |
-| Admin | `/admin` | Launch management (whitelisted only) |
+| Home | `/` | Hero + featured launches + stats + chain selector |
+| Launches | `/launches` | List all active/upcoming launches (per chain or aggregated) |
+| Launch Detail | `/launch/:id` | Single launch — info, buy with margin, chain indicator |
+| Portfolio | `/portfolio` | User positions across all chains, PnL, history |
+| Lend | `/lend` | Lending pool per chain — deposit USDC, earn yield |
+| Stats | `/stats` | Protocol TVL, volume, liquidations (per chain + aggregate) |
+| Bridge | `/bridge` | Bridge positions/tokens cross-chain (v2) |
+| Admin | `/admin` | Launch management per chain (whitelisted only) |
 
 ### 3.2 Key Components
 ```
 components/
 ├── LaunchCard.tsx           # Preview card for launch list
+├── ChainSelector.tsx        # Switch chain (ETH/Base/Arb/BSC/SOL)
 ├── MarginSelector.tsx       # Slider + input for margin level
-├── PositionCard.tsx         # Active position with PnL
+├── PositionCard.tsx         # Active position with PnL + chain badge
 ├── LiquidationGauge.tsx     # Visual health indicator
 ├── OpenPositionModal.tsx    # Confirmation modal
-├── WalletButton.tsx         # Connect wallet
+├── WalletButton.tsx         # Multi-wallet: MetaMask + Phantom + WalletConnect
 ├── PriceChart.tsx           # Token price / MC chart
-├── StatsCounter.tsx         # Animated TVL/volume numbers
-└── LiquidationFeed.tsx      # Live liquidation ticker
+├── StatsCounter.tsx         # Animated TVL/volume numbers (per chain + total)
+├── LiquidationFeed.tsx      # Live liquidation ticker (all chains)
+└── BridgeModal.tsx          # Cross-chain bridge interface (v2)
 ```
 
 ### 3.3 MarginSelector Component Spec
@@ -395,28 +449,69 @@ interface MarginSelectorProps {
 //   - "If MC drops X%, you lose everything"
 ```
 
-### 3.4 Wagmi/Viem Integration
+### 3.4 Wagmi/Viem Multi-Chain Integration
 ```typescript
+// config/chains.ts
+import { base, arbitrum, mainnet, bsc } from 'viem/chains';
+
+export const SIL3T_CHAINS = [base, arbitrum, mainnet, bsc] as const;
+
+export const CHAIN_CONFIG = {
+  [base.id]: {
+    marginEngine: '0x...',
+    lendingPool: '0x...',
+    maxMargin: 7500,        // 75%
+    marginFeeBps: 150,      // 1.5%
+    oracle: 'uniswap-v3-twap',
+  },
+  [arbitrum.id]: {
+    marginEngine: '0x...',
+    lendingPool: '0x...',
+    maxMargin: 7500,
+    marginFeeBps: 150,
+    oracle: 'uniswap-v3-twap',
+  },
+  [mainnet.id]: {
+    marginEngine: '0x...',
+    lendingPool: '0x...',
+    maxMargin: 5000,        // 50% — more conservative on L1
+    marginFeeBps: 200,      // 2% — higher to offset gas
+    oracle: 'chainlink-primary',
+  },
+  [bsc.id]: {
+    marginEngine: '0x...',
+    lendingPool: '0x...',
+    maxMargin: 7500,
+    marginFeeBps: 150,
+    oracle: 'pancakeswap-twap',
+  },
+} as const;
+
 // hooks/useMarginEngine.ts
 import { useWriteContract, useReadContract } from 'wagmi';
-import { MARGIN_ENGINE_ABI, MARGIN_ENGINE_ADDRESS } from '@/config';
+import { useChainId } from 'wagmi';
+import { CHAIN_CONFIG } from '@/config/chains';
 
 export function useOpenPosition() {
+  const chainId = useChainId();
+  const config = CHAIN_CONFIG[chainId];
+  
   return useWriteContract({
-    address: MARGIN_ENGINE_ADDRESS,
+    address: config.marginEngine,
     abi: MARGIN_ENGINE_ABI,
     functionName: 'openPosition',
   });
 }
 
-export function usePositionHealth(positionId: bigint) {
-  return useReadContract({
-    address: MARGIN_ENGINE_ADDRESS,
-    abi: MARGIN_ENGINE_ABI,
-    functionName: 'getPositionHealth',
-    args: [positionId],
-    watch: true, // poll every block
-  });
+// Solana integration (separate)
+// hooks/useMarginSolana.ts
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { Program, AnchorProvider } from '@coral-xyz/anchor';
+
+export function useOpenPositionSolana() {
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  // ... Anchor program interaction
 }
 ```
 
@@ -512,7 +607,7 @@ Max launch raise:    $500K
 
 ```
 sil3t/
-├── contracts/                    # Foundry project
+├── contracts/                    # Foundry project (EVM chains)
 │   ├── src/
 │   │   ├── LendingPool.sol
 │   │   ├── LaunchPool.sol
@@ -522,13 +617,28 @@ sil3t/
 │   │   ├── InsuranceFund.sol
 │   │   ├── FeeCollector.sol
 │   │   ├── SiL3tFactory.sol
+│   │   ├── CrossChainBridge.sol # LayerZero integration (v2)
 │   │   └── mock/
 │   │       └── MockUSDC.sol
 │   ├── test/
 │   ├── script/
-│   │   └── Deploy.s.sol
+│   │   ├── Deploy.s.sol
+│   │   └── DeployAllChains.s.sol
 │   └── foundry.toml
-├── app/                          # Next.js frontend
+├── solana/                       # Anchor project (Solana)
+│   ├── programs/
+│   │   └── sil3t/
+│   │       ├── src/
+│   │       │   ├── lib.rs
+│   │       │   ├── state.rs
+│   │       │   ├── margin.rs
+│   │       │   ├── liquidation.rs
+│   │       │   └── oracle.rs
+│   │       └── Cargo.toml
+│   ├── tests/
+│   ├── Anchor.toml
+│   └── Cargo.toml
+├── app/                          # Next.js frontend (all chains)
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── page.tsx
@@ -536,22 +646,40 @@ sil3t/
 │   │   │   ├── launch/[id]/
 │   │   │   ├── portfolio/
 │   │   │   ├── lend/
+│   │   │   ├── bridge/
 │   │   │   └── stats/
 │   │   ├── components/
 │   │   ├── hooks/
+│   │   │   ├── useMarginEngine.ts   # EVM hooks
+│   │   │   ├── useMarginSolana.ts   # Solana hooks
+│   │   │   └── useChainConfig.ts    # Chain selector logic
 │   │   ├── config/
+│   │   │   ├── chains.ts
+│   │   │   ├── contracts.ts
+│   │   │   └── wagmi.ts
 │   │   └── lib/
 │   └── next.config.js
-├── api/                          # Hono backend
+├── api/                          # Hono backend (all chains)
 │   ├── src/
 │   │   ├── routes/
 │   │   ├── services/
+│   │   │   ├── indexer-evm.ts       # EVM event listener
+│   │   │   ├── indexer-solana.ts    # Solana account listener
+│   │   │   └── price-feed.ts
 │   │   ├── workers/
+│   │   │   ├── liquidation-evm.ts
+│   │   │   └── liquidation-solana.ts
 │   │   └── db/
 │   └── package.json
-├── keeper/                       # Liquidation bot
+├── keeper/                       # Liquidation bot (per chain)
 │   ├── src/
 │   │   ├── monitor.ts
+│   │   ├── chains/
+│   │   │   ├── ethereum.ts
+│   │   │   ├── base.ts
+│   │   │   ├── arbitrum.ts
+│   │   │   ├── bsc.ts
+│   │   │   └── solana.ts
 │   │   ├── liquidator.ts
 │   │   └── alert.ts
 │   └── package.json
@@ -573,17 +701,24 @@ sil3t/
 
 ```
 Week 1-2:   Project setup, tooling, architecture docs
-Week 2-5:   Smart contracts (LendingPool, MarginEngine, Liquidation, Oracle)
-Week 4-6:   Backend (API, indexer, liquidation keeper)
-Week 5-8:   Frontend (dApp, margin selector, portfolio)
-Week 7-9:   Testing (unit, integration, fuzz, E2E)
-Week 8-9:   Security audit
-Week 9-10:  Testnet beta + partner testing
-Week 10:    Mainnet launch (curated launches)
+Week 2-5:   Smart contracts EVM (LendingPool, MarginEngine, Liquidation, Oracle)
+Week 4-6:   Backend (API, indexer, liquidation keeper) — EVM first
+Week 5-8:   Frontend (dApp, chain switcher, margin selector, portfolio)
+Week 7-9:   Testing EVM (unit, integration, fuzz, E2E)
+Week 8-9:   Security audit (EVM contracts)
+Week 9-10:  Testnet beta — Base + Arbitrum + Ethereum Sepolia
+Week 10:    Mainnet launch — Base + Arbitrum (curated launches)
+Week 11:    Ethereum L1 mainnet launch (whale tier)
 Week 12+:   Public launch + token + growth
+Week 14:    Solana program development start
+Week 16:    BSC mainnet deployment
+Week 18:    Solana mainnet launch
+Week 20:    Cross-chain bridge (LayerZero)
 ```
 
-**Total estimated time: 10-12 weeks to mainnet**
+**Total estimated time:**
+- EVM mainnet: 10-12 weeks
+- Full multi-chain (incl. Solana): 18-20 weeks
 
 ---
 
@@ -591,14 +726,17 @@ Week 12+:   Public launch + token + growth
 
 | Item | Cost |
 |------|------|
-| Smart Contract Audit | $30K-$80K |
-| Frontend Development | $15K-$25K |
-| Backend Development | $10K-$15K |
-| Infrastructure (year 1) | $5K-$10K |
-| Insurance Fund (bootstrap) | $50K-$100K |
+| Smart Contract Audit (EVM) | $30K-$80K |
+| Smart Contract Audit (Solana) | $20K-$50K |
+| Frontend Development | $20K-$30K |
+| Backend Development | $12K-$18K |
+| Solana Program Development | $15K-$25K |
+| Infrastructure (year 1, all chains) | $8K-$15K |
+| Insurance Fund (bootstrap, per chain) | $100K-$200K |
 | Bug Bounty (Immunefi) | $10K-$50K |
-| Marketing & Growth | $10K-$20K |
-| **Total** | **$130K-$300K** |
+| Marketing & Growth | $15K-$25K |
+| RPC Costs (Alchemy + Helius, year 1) | $5K-$10K |
+| **Total** | **$235K-$503K** |
 
 ---
 
