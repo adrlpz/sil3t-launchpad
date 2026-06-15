@@ -16,13 +16,13 @@ contract SiL3tFactoryTest is Test {
 
     /// @notice Test suffix constant
     function test_SuffixConstant() public view {
-        assertEq(factory.SUFFIX(), "sil3t");
+        assertEq(factory.SUFFIX(), "51131");
     }
 
     /// @notice Test deploy with invalid salt reverts
     function test_DeployInvalidSaltReverts() public {
         bytes32 badSalt = bytes32(uint256(12345));
-        vm.expectRevert("Invalid salt: address does not end with sil3t");
+        vm.expectRevert("Invalid salt: address does not end with 51131");
         factory.deployToken(badSalt, "Test", "TST", 18, 1000e18, recipient);
     }
 
@@ -96,7 +96,7 @@ contract SiL3tFactoryTest is Test {
     /// @notice Integration: find salt off-chain (log for manual verification)
     /// @dev This test demonstrates the full flow:
     ///      1. Predict addresses for many salts
-    ///      2. Log any that end with "sil3t"
+    ///      2. Log any that end with "51131"
     ///      3. In production: use tools/vanity/findSalt.js instead
     function test_FindVanitySaltDemo() public {
         uint256 found = 0;
@@ -114,7 +114,7 @@ contract SiL3tFactoryTest is Test {
                 found++;
             }
         }
-        // It's fine if none found in 1000 tries — avg is ~1M for 5-char suffix
+        // It's fine if none found in 1000 tries — avg is ~1M for 5-char hex suffix
         emit log_uint(found);
     }
 }
