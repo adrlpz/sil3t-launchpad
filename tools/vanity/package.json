@@ -12,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "@ethersproject/bytes": "^5.8.0",
-    "@ethersproject/keccak256": "^5.8.0"
+    "@ethersproject/keccak256": "^5.8.0",
+    "@noble/hashes": "^2.2.0"
   }
 }

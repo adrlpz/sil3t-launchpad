@@ -88,16 +88,7 @@ contract SiL3tFactory is Ownable {
         );
 
         // Deploy via CREATE2
-        assembly {
-            let ptr := mload(0x40)
-            let size := mload(bytecode)
-            codecopy(ptr, add(bytecode, 0x20), size)
-            let deployed := create2(0, ptr, size, salt)
-            if iszero(deployed) {
-                revert(0, 0)
-            }
-            token := deployed
-        }
+        token = address(new SiL3tToken{salt: salt}(name, symbol, decimals, totalSupply, recipient));
 
         // Record
         deployedTokens.push(token);
