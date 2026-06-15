@@ -7,6 +7,7 @@ import { launchesRoutes } from './routes/launches.js';
 import { positionsRoutes } from './routes/positions.js';
 import { statsRoutes } from './routes/stats.js';
 import { healthRoutes } from './routes/health.js';
+import { startIndexer } from './services/indexer.js';
 
 const app = new Hono();
 
@@ -26,6 +27,7 @@ app.get('/', (c) => {
     name: 'siL3t API',
     version: '1.0.0',
     description: 'Leveraged Launchpad Protocol — Backend API',
+    chain: 'Sepolia Testnet',
     endpoints: {
       health: '/health',
       launches: '/launches',
@@ -36,6 +38,9 @@ app.get('/', (c) => {
 });
 
 const port = parseInt(process.env.PORT || '3001');
+
+// Start indexer
+startIndexer().catch(console.error);
 
 serve({ fetch: app.fetch, port }, () => {
   console.log(`🔥 siL3t API running on http://localhost:${port}`);

@@ -1,95 +1,136 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { db } from '../db/index.js';
+import { launches } from '../db/schema.js';
+import { eq, desc, and } from 'drizzle-orm';
 
 export const launchesRoutes = new Hono();
 
-// Mock data for MVP — replace with DB queries
-const mockLaunches = [
-  {
-    id: 0,
-    chainId: 8453, // Base
-    tokenAddress: '0x1234567890abcdef1234567890abcdef12345678',
-    tokenName: 'DegenToken',
-    tokenSymbol: 'DEGEN',
-    targetRaise: '50000',
-    currentRaise: '32500',
-    tokenPrice: '1.0',
-    marketCap: '200000',
-    maxMargin: 5000,
-    startTime: new Date().toISOString(),
-    endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    finalized: false,
-    cancelled: false,
-    progress: 65,
-  },
-  {
-    id: 1,
-    chainId: 42161, // Arbitrum
-    tokenAddress: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-    tokenName: 'LaunchCoin',
-    tokenSymbol: 'LAUNCH',
-    targetRaise: '100000',
-    currentRaise: '78000',
-    tokenPrice: '0.5',
-    marketCap: '500000',
-    maxMargin: 7500,
-    startTime: new Date().toISOString(),
-    endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    finalized: false,
-    cancelled: false,
-    progress: 78,
-  },
-];
-
 // GET /launches — list all launches
-launchesRoutes.get('/', (c) => {
+launchesRoutes.get('/', async (c) => {
   const chainId = c.req.query('chainId');
   const status = c.req.query('status'); // active, finalized, cancelled
+  const limit = parseInt(c.req.query('limit') || '50');
+  const offset = parseInt(c.req.query('offset') || '0');
 
-  let filtered = [...mockLaunches];
+  try {
+    let query = db.select().from(launches);
 
-  if (chainId) {
-    filtered = filtered.filter((l) => l.chainId === parseInt(chainId));
+    const conditions = [];
+    if (chainId) conditions.push(eq(launches.chainId, parseInt(chainId)));
+    if (status === 'active') {
+      conditions.push(eq(launches.finalized, false));
+      conditions.push(eq(launches.cancelled, false));
+    } else if (status === 'finalized') {
+      conditions.push(eq(launches.finalized, true));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+
+    const result = await query
+      .orderBy(desc(launches.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return c.json({
+      launches: result.map(mapLaunch),
+      total: result.length,
+      limit,
+      offset,
+    });
+  } catch (error) {
+    console.error('GET /launches error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
-
-  if (status === 'active') {
-    filtered = filtered.filter((l) => !l.finalized && !l.cancelled);
-  } else if (status === 'finalized') {
-    filtered = filtered.filter((l) => l.finalized);
-  }
-
-  return c.json({
-    launches: filtered,
-    total: filtered.length,
-  });
 });
 
 // GET /launches/:id — single launch
-launchesRoutes.get('/:id', (c) => {
+launchesRoutes.get('/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
-  const launch = mockLaunches.find((l) => l.id === id);
 
-  if (!launch) {
-    return c.json({ error: 'Launch not found' }, 404);
+  try {
+    const result = await db
+      .select()
+      .from(launches)
+      .where(eq(launches.id, id))
+      .limit(1);
+
+    if (result.length === 0) {
+      return c.json({ error: 'Launch not found' }, 404);
+    }
+
+    return c.json({ launch: mapLaunch(result[0]) });
+  } catch (error) {
+    console.error('GET /launches/:id error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// POST /launches — create launch (from indexer or admin)
+launchesRoutes.post('/', async (c) => {
+  const body = await c.req.json();
+
+  const schema = z.object({
+    contractLaunchId: z.number(),
+    chainId: z.number(),
+    tokenAddress: z.string(),
+    tokenName: z.string().optional(),
+    tokenSymbol: z.string().optional(),
+    targetRaise: z.string(),
+    tokenPrice: z.string().optional(),
+    marketCap: z.string().optional(),
+    maxMargin: z.number().default(5000),
+    startTime: z.string().optional(),
+    endTime: z.string().optional(),
+  });
+
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.flatten() }, 400);
   }
 
-  return c.json({ launch });
+  try {
+    const result = await db.insert(launches).values({
+      contractLaunchId: parsed.data.contractLaunchId,
+      chainId: parsed.data.chainId,
+      tokenAddress: parsed.data.tokenAddress,
+      tokenName: parsed.data.tokenName || null,
+      tokenSymbol: parsed.data.tokenSymbol || null,
+      targetRaise: parsed.data.targetRaise,
+      tokenPrice: parsed.data.tokenPrice || null,
+      marketCap: parsed.data.marketCap || null,
+      maxMargin: parsed.data.maxMargin,
+      startTime: parsed.data.startTime ? new Date(parsed.data.startTime) : null,
+      endTime: parsed.data.endTime ? new Date(parsed.data.endTime) : null,
+    }).returning();
+
+    return c.json({ launch: mapLaunch(result[0]) }, 201);
+  } catch (error) {
+    console.error('POST /launches error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
 });
 
-// GET /launches/:id/depositors — list depositors for a launch
-launchesRoutes.get('/:id/depositors', (c) => {
-  const id = parseInt(c.req.param('id'));
-
-  // Mock depositor data
-  const depositors = [
-    { address: '0x1111...aaaa', amount: '5000', timestamp: new Date().toISOString() },
-    { address: '0x2222...bbbb', amount: '12000', timestamp: new Date().toISOString() },
-    { address: '0x3333...cccc', amount: '15500', timestamp: new Date().toISOString() },
-  ];
-
-  return c.json({
-    launchId: id,
-    depositors,
-    totalDepositors: depositors.length,
-  });
-});
+// Helper
+function mapLaunch(row: any) {
+  return {
+    id: row.id,
+    contractLaunchId: row.contractLaunchId,
+    chainId: row.chainId,
+    tokenAddress: row.tokenAddress,
+    tokenName: row.tokenName,
+    tokenSymbol: row.tokenSymbol,
+    targetRaise: row.targetRaise,
+    currentRaise: row.currentRaise || '0',
+    tokenPrice: row.tokenPrice,
+    marketCap: row.marketCap,
+    maxMargin: row.maxMargin,
+    startTime: row.startTime?.toISOString(),
+    endTime: row.endTime?.toISOString(),
+    finalized: row.finalized,
+    cancelled: row.cancelled,
+    createdAt: row.createdAt?.toISOString(),
+  };
+}

@@ -1,75 +1,92 @@
 import { Hono } from 'hono';
+import { db } from '../db/index.js';
+import { launches, positions, liquidations, protocolStats } from '../db/schema.js';
+import { eq, sql, desc } from 'drizzle-orm';
 
 export const statsRoutes = new Hono();
 
-// GET /stats — protocol-wide stats
-statsRoutes.get('/', (c) => {
-  return c.json({
-    tvl: '1250000',
-    totalVolume: '5800000',
-    totalLaunches: 24,
-    totalPositions: 156,
-    totalLiquidations: 12,
-    totalRevenue: '87000',
-    chains: {
-      base: { tvl: '750000', launches: 15, positions: 98 },
-      arbitrum: { tvl: '400000', launches: 7, positions: 45 },
-      ethereum: { tvl: '100000', launches: 2, positions: 13 },
-    },
-  });
+// GET /stats — protocol overview
+statsRoutes.get('/', async (c) => {
+  try {
+    const [launchCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(launches);
+
+    const [activePositions] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(positions)
+      .where(eq(positions.isActive, true));
+
+    const [totalLiquidations] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(liquidations);
+
+    return c.json({
+      totalLaunches: launchCount?.count || 0,
+      activePositions: activePositions?.count || 0,
+      totalLiquidations: totalLiquidations?.count || 0,
+    });
+  } catch (error) {
+    console.error('GET /stats error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
 });
 
-// GET /stats/tvl — TVL per chain
-statsRoutes.get('/tvl', (c) => {
-  return c.json({
-    total: '1250000',
-    byChain: {
-      8453: '750000',    // Base
-      42161: '400000',   // Arbitrum
-      1: '100000',       // Ethereum
-    },
-  });
+// GET /stats/tvl — total value locked
+statsRoutes.get('/tvl', async (c) => {
+  try {
+    const result = await db
+      .select({
+        totalDeposits: sql<string>`coalesce(sum(${positions.deposit}), '0')`,
+        totalBorrowed: sql<string>`coalesce(sum(${positions.borrowed}), '0')`,
+      })
+      .from(positions)
+      .where(eq(positions.isActive, true));
+
+    return c.json({
+      tvl: result[0]?.totalDeposits || '0',
+      totalBorrowed: result[0]?.totalBorrowed || '0',
+    });
+  } catch (error) {
+    console.error('GET /stats/tvl error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
 });
 
-// GET /stats/volume — 24h volume
-statsRoutes.get('/volume', (c) => {
-  return c.json({
-    total24h: '320000',
-    byChain: {
-      8453: '200000',
-      42161: '100000',
-      1: '20000',
-    },
-  });
+// GET /stats/volume — total volume
+statsRoutes.get('/volume', async (c) => {
+  try {
+    const result = await db
+      .select({
+        totalVolume: sql<string>`coalesce(sum(${positions.effectiveSize}), '0')`,
+        totalPositions: sql<number>`count(*)::int`,
+      })
+      .from(positions);
+
+    return c.json({
+      totalVolume: result[0]?.totalVolume || '0',
+      totalPositions: result[0]?.totalPositions || 0,
+    });
+  } catch (error) {
+    console.error('GET /stats/volume error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
 });
 
 // GET /stats/liquidations — recent liquidations
-statsRoutes.get('/liquidations', (c) => {
-  const liquidations = [
-    {
-      id: 0,
-      positionId: 5,
-      chainId: 8453,
-      liquidator: '0xLiq111111111111111111111111111111111111',
-      debtRepaid: '100',
-      reward: '1.5',
-      txHash: '0xabc123...',
-      timestamp: new Date().toISOString(),
-    },
-    {
-      id: 1,
-      positionId: 12,
-      chainId: 42161,
-      liquidator: '0xLiq222222222222222222222222222222222222',
-      debtRepaid: '250',
-      reward: '3.75',
-      txHash: '0xdef456...',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-    },
-  ];
+statsRoutes.get('/liquidations', async (c) => {
+  const limit = parseInt(c.req.query('limit') || '20');
 
-  return c.json({
-    liquidations,
-    total: liquidations.length,
-  });
+  try {
+    const result = await db
+      .select()
+      .from(liquidations)
+      .orderBy(desc(liquidations.createdAt))
+      .limit(limit);
+
+    return c.json({ liquidations: result });
+  } catch (error) {
+    console.error('GET /stats/liquidations error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
 });
