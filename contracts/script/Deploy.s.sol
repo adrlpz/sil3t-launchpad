@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../src/SiL3tFactory.sol";
+import "../src/SiL3tProtocol.sol";
 import "../src/mock/MockUSDC.sol";
 
 /// @title Deploy siL3t Protocol
@@ -22,7 +22,7 @@ contract Deploy is Script {
         console.log("USDC deployed at:", address(usdc));
 
         // 2. Deploy SiL3t Factory
-        SiL3tFactory factory = new SiL3tFactory(deployer);
+        SiL3tProtocol factory = new SiL3tProtocol(deployer);
         console.log("Factory deployed at:", address(factory));
 
         // 3. Initialize protocol (deploys all sub-contracts)

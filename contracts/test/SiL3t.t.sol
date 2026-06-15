@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../src/SiL3tFactory.sol";
+import "../src/SiL3tProtocol.sol";
 import "../src/mock/MockUSDC.sol";
 
 contract SiL3tTest is Test {
-    SiL3tFactory public factory;
+    SiL3tProtocol public factory;
     MockUSDC public usdc;
     OracleAdapter public oc;
     MarginEngine public me;
@@ -15,7 +15,7 @@ contract SiL3tTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        factory = new SiL3tFactory(address(this));
+        factory = new SiL3tProtocol(address(this));
         factory.initialize(address(usdc), address(this), address(this));
         oc = factory.oracle();
         me = factory.marginEngine();
