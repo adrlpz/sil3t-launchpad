@@ -5,16 +5,16 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./SiL3tToken.sol";
 
-/// @title SiL3tFactory — Deploy tokens with vanity address suffix "sil3t"
-/// @notice Uses CREATE2 to deploy token contracts whose address ends with "sil3t"
+/// @title SiL3tFactory — Deploy tokens with vanity address suffix "51131"
+/// @notice Uses CREATE2 to deploy token contracts whose address ends with "51131"
 ///
 /// Flow:
-///   1. Off-chain: brute-force salt until address ends with "sil3t"
-///   2. On-chain: factory.deployToken(salt, name, symbol, ...) → address ends with "sil3t"
+///   1. Off-chain: brute-force salt until address ends with "51131"
+///   2. On-chain: factory.deployToken(salt, name, symbol, ...) → address ends with "51131"
 ///
 /// The factory uses CREATE2:
 ///   address = keccak256(0xff ++ factory ++ salt ++ keccak(bytecode))[12:]
-///   We search for salt where last 5 hex chars = "sil3t"
+///   We search for salt where last 5 hex chars = "51131"
 contract SiL3tFactory is Ownable {
 
     // ─── Events ───────────────────────────────────────────────
@@ -36,9 +36,9 @@ contract SiL3tFactory is Ownable {
     /// @notice Mapping to check if address is a siL3t token
     mapping(address => bool) public isSiL3tToken;
 
-    /// @notice Required suffix (hex-encoded)
-    /// "sil3t" in hex = 0x73696c3374 (but we check last 5 chars of address)
-    string public constant SUFFIX = "sil3t";
+    /// @notice Required suffix (hex-valid)
+    /// "51131" — all chars valid hex (0-9, a-f)
+    string public constant SUFFIX = "51131";
 
     // ─── Constructor ──────────────────────────────────────────
 
@@ -48,8 +48,8 @@ contract SiL3tFactory is Ownable {
 
     /// @notice Deploy a token using a pre-computed salt
     /// @dev Caller MUST have found a valid salt off-chain where
-    ///      CREATE2(factory, salt, bytecode) address ends with "sil3t"
-    /// @param salt The salt that produces a vanity address ending in "sil3t"
+    ///      CREATE2(factory, salt, bytecode) address ends with "51131"
+    /// @param salt The salt that produces a vanity address ending in "51131"
     /// @param name Token name
     /// @param symbol Token symbol
     /// @param decimals Token decimals (usually 18)
@@ -84,7 +84,7 @@ contract SiL3tFactory is Ownable {
         // Verify suffix
         require(
             _hasSuffix(token, SUFFIX),
-            "Invalid salt: address does not end with sil3t"
+            "Invalid salt: address does not end with 51131"
         );
 
         // Deploy via CREATE2
@@ -116,7 +116,7 @@ contract SiL3tFactory is Ownable {
     /// @param totalSupply Total supply
     /// @param recipient Supply recipient
     /// @return predicted The predicted deploy address
-    /// @return valid Whether the address ends with "sil3t"
+    /// @return valid Whether the address ends with "51131"
     function predictAddress(
         bytes32 salt,
         string calldata name,

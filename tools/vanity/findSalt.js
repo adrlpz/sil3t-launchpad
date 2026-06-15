@@ -3,7 +3,7 @@
 /**
  * siL3t Vanity Salt Finder
  * 
- * Finds a CREATE2 salt that produces a token address ending with "sil3t"
+ * Finds a CREATE2 salt that produces a token address ending with "51131"
  * 
  * Usage:
  *   node findSalt.js [factory] [suffix] [bytecode]
@@ -18,15 +18,15 @@ const { concat } = require('@ethersproject/bytes');
 
 // ─── Default Config ────────────────────────────────────────
 
-const DEFAULT_SUFFIX = 'sil3t';
+const DEFAULT_SUFFIX = '51131';
 const MAX_ITERATIONS = 10_000_000; // 10M max (5 chars ≈ 1M avg)
 
 // ─── Core: Salt Finder ────────────────────────────────────
 
 /**
- * Find a salt that produces a CREATE2 address ending with suffix
+ * Find a salt that produces a CREATE2 address ending with suffix (hex-valid)
  * @param {string} factory - Factory contract address (checksummed)
- * @param {string} suffix - Suffix to match (e.g., "sil3t")
+ * @param {string} suffix - Suffix to match (e.g., "51131")
  * @param {string} bytecode - Contract creation bytecode (hex string with 0x prefix)
  * @param {function} onProgress - Progress callback (optional)
  * @returns {{ salt: string, address: string, iterations: number }}
@@ -139,7 +139,7 @@ Usage:
 
 Args:
   factory_address  CREATE2 factory address (required)
-  suffix           Address suffix to find (default: "sil3t")
+  suffix           Address suffix to find (default: "51131")
   bytecode         Token creation bytecode (hex, optional)
 
 Environment:
@@ -168,7 +168,7 @@ Output:
 ╚═══════════════════════════════════════════════════════════╝
 
 Factory: ${factory}
-Suffix:  ${suffix}
+Suffix:  ${suffix} (hex-valid ✓)
 Mode:    ${bytecode ? 'custom bytecode' : 'default SiL3tToken bytecode'}
 `);
 
